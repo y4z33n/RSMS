@@ -7,6 +7,7 @@ import { logger } from '@/lib/logger';
 import { collection, getDocs, query, where } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
 import { Button } from '@/components/ui/button';
+import QuotaReset from '@/components/admin/QuotaReset';
 
 interface DashboardStats {
   totalCustomers: number;
@@ -95,6 +96,7 @@ export default function AdminDashboardPage() {
       )}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <QuotaReset />
         {/* Quick Stats */}
         <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
           <h2 className="text-lg font-semibold mb-4 text-gray-900">Quick Stats</h2>

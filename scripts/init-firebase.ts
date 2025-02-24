@@ -1,72 +1,117 @@
 import { initializeApp, cert } from 'firebase-admin/app';
 import { getFirestore } from 'firebase-admin/firestore';
 import { getAuth } from 'firebase-admin/auth';
-import * as path from 'path';
+import { RationCardType } from '../src/types/schema';
+import * as dotenv from 'dotenv';
 
-const serviceAccount = require('../ration-shop-ver1-firebase-adminsdk-fbsvc-e4b2ed8c5d.json');
+// Load environment variables from .env and .env.local
+dotenv.config({ path: '.env.local' });
+dotenv.config();
 
 // Initialize Firebase Admin
-initializeApp({
-  credential: cert(serviceAccount),
+const app = initializeApp({
+  credential: cert({
+    projectId: process.env.FIREBASE_PROJECT_ID,
+    clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+    privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+  }),
+  databaseURL: process.env.FIREBASE_DATABASE_URL,
 });
 
-const db = getFirestore();
-const auth = getAuth();
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+const CARD_TYPES = [
+  { type: 'YELLOW' as RationCardType, label: 'Yellow - Antyodaya Anna Yojana (AAY)' },
+  { type: 'PINK' as RationCardType, label: 'Pink - Priority (BPL)' },
+  { type: 'BLUE' as RationCardType, label: 'Blue - Non-Priority (APL with Subsidy)' }
+];
 
 async function initializeCollections() {
   try {
     console.log('Initializing collections...');
     
-    // Create collections with an initial document to ensure they exist
+    // Create initial inventory items if they don't exist
+    const inventoryItems = [
+      {
+        id: '6KQMuTb66w4iiyUgl7Cn',  // Rice ID from database
+        name: 'Rice',
+        quantity: 1000,
+        unit: 'kg',
+        minimumStock: 100,
+        prices: {
+          YELLOW: 3,
+          PINK: 5,
+          BLUE: 7
+        }
+      },
+      {
+        id: 'NN2JnDVsaiPc6ILVUsAH',  // Wheat ID from database
+        name: 'Wheat',
+        quantity: 1000,
+        unit: 'kg',
+        minimumStock: 100,
+        prices: {
+          YELLOW: 2,
+          PINK: 4,
+          BLUE: 6
+        }
+      }
+    ];
+
+    // Add inventory items
+    for (const item of inventoryItems) {
+      await db.collection('inventory').doc(item.id).set({
+        ...item,
+        lastUpdated: new Date()
+      });
+    }
+
+    // Initialize card quotas for each card type
+    for (const { type, label } of CARD_TYPES) {
+      const monthlyQuota: Record<string, number> = {};
+      inventoryItems.forEach(item => {
+        monthlyQuota[item.id] = type === 'YELLOW' ? 10 : type === 'PINK' ? 8 : 6;
+      });
+
+      await db.collection('cardQuotas').doc(type).set({
+        cardType: type,
+        description: label,
+        monthlyQuota,
+        lastUpdated: new Date()
+      });
+    }
+
+    // Create initial customer for testing
     await db.collection('customers').doc('initial').set({
       name: 'Initial Customer',
       aadhaarNumber: '000000000000',
       phone: '0000000000',
       address: 'Initial Address',
-      rationCardType: 'WHITE',
+      rationCardType: 'YELLOW',
       rationCardNumber: 'INITIAL000',
       familyMembers: [],
-      monthlyQuota: {
-        rice: 0,
-        wheat: 0,
-        sugar: 0,
-        kerosene: 0,
+      remainingQuota: {
+        rice: 10,
+        wheat: 10
       },
       createdAt: new Date(),
     });
 
-    await db.collection('inventory').doc('initial').set({
-      name: 'Initial Item',
-      quantity: 0,
-      unit: 'kg',
-      minimumStock: 0,
-      prices: {
-        WHITE: 0,
-        YELLOW: 0,
-        GREEN: 0,
-        SAFFRON: 0,
-        RED: 0,
-      },
-      lastUpdated: new Date(),
-    });
-
+    // Create initial order
     await db.collection('orders').doc('initial').set({
       customerId: 'initial',
       items: [],
       totalAmount: 0,
       status: 'completed',
       orderDate: new Date(),
-      rationCardType: 'WHITE',
+      rationCardType: 'YELLOW',
     });
 
     console.log('Collections initialized successfully');
 
-    // Delete the initial documents
-    await Promise.all([
-      db.collection('customers').doc('initial').delete(),
-      db.collection('inventory').doc('initial').delete(),
-      db.collection('orders').doc('initial').delete(),
-    ]);
+    // Delete the initial order (keep the customer for testing)
+    await db.collection('orders').doc('initial').delete();
 
     console.log('Initial documents cleaned up');
   } catch (error) {

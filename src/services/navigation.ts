@@ -28,7 +28,7 @@ export const useNavigation = () => {
 
   const navigateToLogin = useCallback((isAdmin: boolean = false) => {
     try {
-      const path = isAdmin ? '/admin/login' : '/customer/login';
+      const path = isAdmin ? '/admin/login' : '/';
       logger.debug('Navigation', `Redirecting to ${path}`);
       router.replace(path);
     } catch (error) {

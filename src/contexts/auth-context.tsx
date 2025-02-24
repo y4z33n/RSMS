@@ -134,6 +134,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       // Clear session cookie
       document.cookie = 'session=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
       
+      // Clear any stored customer data
+      if (typeof window !== 'undefined') {
+        sessionStorage.clear();
+      }
+      
       await auth.signOut();
       
       setState({
@@ -142,6 +147,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         loading: false,
         error: null,
       });
+
+      // Redirect to home page
+      window.location.href = '/';
     } catch (error) {
       setState(prev => ({
         ...prev,

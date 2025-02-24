@@ -2,29 +2,36 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Users, Package, ShoppingCart, LogOut, Home } from 'lucide-react';
+import { Users, Package, ShoppingCart, LogOut, Home, CreditCard, MessageSquare } from 'lucide-react';
 import { useAuth } from '@/contexts/auth-context';
 import { useNavigation } from '@/services/navigation';
 import { cn } from '@/lib/utils';
+import { useRouter } from 'next/navigation';
+import { toast } from 'react-hot-toast';
+import { logger } from '@/lib/logger';
 
 const menuItems = [
   { href: '/admin/dashboard', label: 'Dashboard', icon: Home },
   { href: '/admin/customers', label: 'Customers', icon: Users },
   { href: '/admin/inventory', label: 'Inventory', icon: Package },
   { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
+  { href: '/admin/card-quotas', label: 'Card Quotas', icon: CreditCard },
+  { href: '/admin/customer-issues', label: 'Customer Issues', icon: MessageSquare },
 ];
 
 export function Sidebar() {
   const pathname = usePathname();
   const { logout } = useAuth();
   const { navigateToLogin } = useNavigation();
+  const router = useRouter();
 
   const handleLogout = async () => {
     try {
       await logout();
-      navigateToLogin(true);
+      router.push('/');
+      toast.success('Logged out successfully');
     } catch (error) {
-      console.error('Logout failed:', error);
+      toast.error('Failed to log out');
     }
   };
 

@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, use } from 'react';
+import { useRouter, useParams } from 'next/navigation';
 import { Edit, ArrowLeft } from 'lucide-react';
 import { customerApi } from '@/lib/api/customers';
 import type { Customer } from '@/types/schema';
@@ -12,11 +12,10 @@ import { Button } from '@/components/ui/button';
 import { logger } from '@/lib/logger';
 import { toast } from 'react-hot-toast';
 
-export default function CustomerDetailsPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default function CustomerDetailsPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  
   const router = useRouter();
   const { admin, loading } = useAuth();
   const [customer, setCustomer] = useState<Customer | null>(null);
@@ -33,13 +32,13 @@ export default function CustomerDetailsPage({
 
   useEffect(() => {
     async function fetchCustomer() {
-      if (!admin) return;
+      if (!admin || !id) return;
 
       try {
         setLoadingCustomer(true);
         setError(null);
 
-        const docRef = doc(db, 'customers', params.id);
+        const docRef = doc(db, 'customers', id);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
@@ -57,7 +56,7 @@ export default function CustomerDetailsPage({
     }
 
     fetchCustomer();
-  }, [admin, params.id]);
+  }, [admin, id]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -67,7 +66,7 @@ export default function CustomerDetailsPage({
       setIsSaving(true);
       setError(null);
 
-      const docRef = doc(db, 'customers', params.id);
+      const docRef = doc(db, 'customers', id);
       await updateDoc(docRef, {
         name: customer.name,
         email: customer.email,
@@ -98,7 +97,7 @@ export default function CustomerDetailsPage({
       setIsDeleting(true);
       setError(null);
 
-      const docRef = doc(db, 'customers', params.id);
+      const docRef = doc(db, 'customers', id);
       await deleteDoc(docRef);
 
       toast.success('Customer deleted successfully');

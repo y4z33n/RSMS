@@ -2,81 +2,134 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { collection, query, where, getDocs } from 'firebase/firestore';
-import { sendSignInLinkToEmail } from 'firebase/auth';
-import { auth, db } from '@/lib/firebase';
-import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
-import { logger } from '@/lib/logger';
+import Link from 'next/link';
+import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { signInWithCustomToken } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
 import { toast } from 'react-hot-toast';
+import { logger } from '@/lib/logger';
+import { Loader2, ArrowLeft } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+
+// Function to generate a 6-digit OTP
+const generateOTP = () => {
+  return Math.floor(100000 + Math.random() * 900000).toString();
+};
 
 export default function CustomerLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState('');
-  const [aadhaar, setAadhaar] = useState('');
-  const [error, setError] = useState('');
+  const [aadhaarNumber, setAadhaarNumber] = useState('');
+  const [otp, setOtp] = useState('');
+  const [showOtpInput, setShowOtpInput] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [message, setMessage] = useState('');
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleAadhaarSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setMessage('');
-    setLoading(true);
+    if (loading) return;
 
     try {
-      logger.info('CustomerLoginPage', 'Verifying customer details', { email, aadhaar });
+      setLoading(true);
 
-      // Check if customer exists with given email and Aadhaar
+      // Query customer by Aadhaar number
       const customersRef = collection(db, 'customers');
-      const q = query(
-        customersRef,
-        where('email', '==', email),
-        where('aadhaarNumber', '==', aadhaar)
-      );
-
+      const q = query(customersRef, where('aadhaarNumber', '==', aadhaarNumber));
       const querySnapshot = await getDocs(q);
 
       if (querySnapshot.empty) {
-        logger.warn('CustomerLoginPage', 'Customer not found', { email, aadhaar });
-        setError('No customer found with these details. Please contact the admin.');
-        setLoading(false);
+        toast.error('Customer not found');
         return;
       }
 
-      // Configure action code settings
-      const actionCodeSettings = {
-        url: `${window.location.origin}/customer/verify`,
-        handleCodeInApp: true
-      };
+      const customerDoc = querySnapshot.docs[0];
+      const customerData = customerDoc.data();
 
-      // Send sign-in link
-      await sendSignInLinkToEmail(auth, email, actionCodeSettings);
+      // Generate and store OTP
+      const newOTP = generateOTP();
+      await updateDoc(doc(db, 'customers', customerDoc.id), {
+        currentOTP: newOTP,
+        otpGeneratedAt: serverTimestamp()
+      });
 
-      // Save the email and aadhaar for verification
-      window.localStorage.setItem('emailForSignIn', email);
-      window.localStorage.setItem('aadhaarForSignIn', aadhaar);
+      // In a real application, send OTP via SMS
+      console.log('OTP:', newOTP); // For development only
 
-      logger.info('CustomerLoginPage', 'Sign-in link sent successfully', { email });
-      setMessage('A sign-in link has been sent to your email. Please check your inbox and spam folder.');
-      toast.success('Login link sent! Check your email.');
+      // Store customer ID for verification
+      sessionStorage.setItem('tempCustomerId', customerDoc.id);
 
-    } catch (err: any) {
-      logger.error('CustomerLoginPage', 'Login error', err);
-      let errorMessage = 'Failed to send login link. Please try again.';
-      
-      if (err.code === 'auth/operation-not-allowed') {
-        errorMessage = 'Email link sign-in is not enabled. Please contact support.';
-      } else if (err.code === 'auth/invalid-email') {
-        errorMessage = 'Please enter a valid email address.';
-      } else if (err.code === 'auth/invalid-dynamic-link-domain') {
-        errorMessage = 'Invalid configuration. Please contact support.';
-      } else if (err.code === 'permission-denied') {
-        errorMessage = 'Access denied. Please make sure you have the correct permissions.';
+      setShowOtpInput(true);
+      toast.success('OTP sent successfully');
+    } catch (error) {
+      logger.error('CustomerLoginPage', 'Error in Aadhaar verification', error);
+      toast.error('Failed to verify Aadhaar number');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleOtpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (loading) return;
+
+    try {
+      setLoading(true);
+
+      const customerId = sessionStorage.getItem('tempCustomerId');
+      if (!customerId) {
+        throw new Error('Customer ID not found');
       }
-      
-      setError(errorMessage);
-      toast.error(errorMessage);
+
+      // Verify OTP
+      const customerDoc = await getDocs(query(
+        collection(db, 'customers'),
+        where('aadhaarNumber', '==', aadhaarNumber),
+        where('currentOTP', '==', otp)
+      ));
+
+      if (customerDoc.empty) {
+        toast.error('Invalid OTP');
+        return;
+      }
+
+      // Get custom token from your backend
+      const response = await fetch('/api/auth/customer-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          customerId,
+          aadhaarNumber 
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to get authentication token');
+      }
+
+      const { token } = await response.json();
+
+      // Sign in with custom token
+      await signInWithCustomToken(auth, token);
+
+      // Store customer data
+      const customer = customerDoc.docs[0].data();
+      sessionStorage.setItem('customer', JSON.stringify({
+        id: customerDoc.docs[0].id,
+        ...customer
+      }));
+
+      // Clear temporary data
+      sessionStorage.removeItem('tempCustomerId');
+
+      // Clear OTP from database
+      await updateDoc(doc(db, 'customers', customerId), {
+        currentOTP: null,
+        otpGeneratedAt: null
+      });
+
+      toast.success('Login successful');
+      router.push('/customer/shop');
+    } catch (error) {
+      logger.error('CustomerLoginPage', 'Error in OTP verification', error);
+      toast.error('Failed to verify OTP');
     } finally {
       setLoading(false);
     }
@@ -86,85 +139,98 @@ export default function CustomerLoginPage() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8">
         <div>
-          <button
-            onClick={() => {
-              logger.debug('CustomerLoginPage', 'Navigating back to home');
-              router.push('/');
-            }}
-            className="mb-8 inline-flex items-center text-sm text-gray-500 hover:text-gray-700"
-          >
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to home
-          </button>
-          
-          <h2 className="text-center text-3xl font-extrabold text-gray-900">
-            Customer Sign In
+          <Link href="/" className="inline-flex items-center text-sm text-gray-600 hover:text-gray-900">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Back to Home
+          </Link>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+            Customer Login
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Enter your registered email and Aadhaar number
+            Please enter your Aadhaar number to continue
           </p>
         </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          {error && (
-            <div className="rounded-md bg-red-50 p-4">
-              <div className="text-sm text-red-700">{error}</div>
-            </div>
+
+        <div className="mt-8">
+          {!showOtpInput ? (
+            <form onSubmit={handleAadhaarSubmit} className="space-y-6">
+              <div>
+                <label htmlFor="aadhaar" className="block text-sm font-medium text-gray-700">
+                  Aadhaar Number
+                </label>
+                <input
+                  id="aadhaar"
+                  name="aadhaar"
+                  type="text"
+                  required
+                  value={aadhaarNumber}
+                  onChange={(e) => setAadhaarNumber(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter 12-digit Aadhaar number"
+                  pattern="[0-9]{12}"
+                  maxLength={12}
+                  disabled={loading}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || aadhaarNumber.length !== 12}
+                className="w-full"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin h-5 w-5 mx-auto" />
+                ) : (
+                  'Get OTP'
+                )}
+              </Button>
+            </form>
+          ) : (
+            <form onSubmit={handleOtpSubmit} className="space-y-6">
+              <div>
+                <label htmlFor="otp" className="block text-sm font-medium text-gray-700">
+                  Enter OTP
+                </label>
+                <input
+                  id="otp"
+                  name="otp"
+                  type="text"
+                  required
+                  value={otp}
+                  onChange={(e) => setOtp(e.target.value)}
+                  className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="Enter 6-digit OTP"
+                  pattern="[0-9]{6}"
+                  maxLength={6}
+                  disabled={loading}
+                />
+              </div>
+
+              <Button
+                type="submit"
+                disabled={loading || otp.length !== 6}
+                className="w-full"
+              >
+                {loading ? (
+                  <Loader2 className="animate-spin h-5 w-5 mx-auto" />
+                ) : (
+                  'Verify OTP'
+                )}
+              </Button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowOtpInput(false);
+                  setOtp('');
+                }}
+                className="w-full text-sm text-blue-600 hover:text-blue-500"
+              >
+                Change Aadhaar Number
+              </button>
+            </form>
           )}
-
-          {message && (
-            <div className="rounded-md bg-green-50 p-4">
-              <div className="text-sm text-green-700">{message}</div>
-            </div>
-          )}
-
-          <div className="rounded-md shadow-sm -space-y-px">
-            <div>
-              <label htmlFor="email-address" className="sr-only">
-                Email address
-              </label>
-              <input
-                id="email-address"
-                name="email"
-                type="email"
-                autoComplete="email"
-                required
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-gray-500 focus:border-gray-500 focus:z-10 sm:text-sm"
-                placeholder="Email address"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-            <div>
-              <label htmlFor="aadhaar" className="sr-only">
-                Aadhaar Number
-              </label>
-              <input
-                id="aadhaar"
-                name="aadhaar"
-                type="text"
-                required
-                pattern="[0-9]{12}"
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-gray-500 focus:border-gray-500 focus:z-10 sm:text-sm"
-                placeholder="Aadhaar Number (12 digits)"
-                value={aadhaar}
-                onChange={(e) => setAadhaar(e.target.value)}
-                disabled={loading}
-              />
-            </div>
-          </div>
-
-          <div>
-            <Button
-              type="submit"
-              className="w-full bg-gray-900 hover:bg-gray-800"
-              disabled={loading}
-            >
-              {loading ? 'Sending login link...' : 'Send Login Link'}
-            </Button>
-          </div>
-        </form>
+        </div>
       </div>
     </div>
   );

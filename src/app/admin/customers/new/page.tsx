@@ -2,71 +2,58 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { db } from '@/lib/firebase';
+import { ArrowLeft } from 'lucide-react';
 import { collection, addDoc } from 'firebase/firestore';
-import { Button } from '@/components/ui/button';
-import { logger } from '@/lib/logger';
+import { db } from '@/lib/firebase';
+import { toast } from 'react-hot-toast';
 import type { RationCardType } from '@/types/schema';
+import { logger } from '@/lib/logger';
 
-interface CustomerFormData {
-  name: string;
-  email: string;
-  phone: string;
-  aadhaarNumber: string;
-  address: string;
-  rationCardType: RationCardType;
-  rationCardNumber: string;
-  familyMembers: Array<{
-    name: string;
-    aadhaarNumber: string;
-    relationship: string;
-    age: number;
-  }>;
-}
+const CARD_TYPES = [
+  { type: 'YELLOW' as RationCardType, label: 'Yellow - Antyodaya Anna Yojana (AAY)' },
+  { type: 'PINK' as RationCardType, label: 'Pink - Priority (BPL)' },
+  { type: 'BLUE' as RationCardType, label: 'Blue - Non-Priority (APL with Subsidy)' }
+];
 
 export default function NewCustomerPage() {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [formData, setFormData] = useState<CustomerFormData>({
+  const [formData, setFormData] = useState({
     name: '',
     email: '',
     phone: '',
     aadhaarNumber: '',
     address: '',
-    rationCardType: 'WHITE',
+    rationCardType: 'YELLOW' as RationCardType,
     rationCardNumber: '',
-    familyMembers: [],
+    familyMembers: []
   });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setLoading(true);
+    if (loading) return;
 
     try {
+      setLoading(true);
       logger.info('NewCustomerPage', 'Creating new customer', formData);
 
-      // Add customer to Firestore
-      const docRef = await addDoc(collection(db, 'customers'), {
+      // Create customer document in Firestore
+      const customerRef = await addDoc(collection(db, 'customers'), {
         ...formData,
+        createdAt: new Date(),
         monthlyQuota: {
           rice: 0,
           wheat: 0,
           sugar: 0,
-          kerosene: 0,
-        },
-        createdAt: new Date(),
+          kerosene: 0
+        }
       });
 
-      logger.info('NewCustomerPage', 'Customer created successfully', {
-        customerId: docRef.id
-      });
-
+      toast.success('Customer created successfully');
       router.push('/admin/customers');
-    } catch (err) {
-      logger.error('NewCustomerPage', 'Error creating customer', err);
-      setError('Failed to create customer. Please try again.');
+    } catch (error) {
+      logger.error('NewCustomerPage', 'Error creating customer', error);
+      toast.error('Failed to create customer');
     } finally {
       setLoading(false);
     }
@@ -81,128 +68,167 @@ export default function NewCustomerPage() {
   };
 
   return (
-    <div className="p-8">
-      <div className="max-w-2xl mx-auto">
-        <h1 className="text-2xl font-bold mb-6">Add New Customer</h1>
-        
-        <form onSubmit={handleSubmit} className="space-y-6 bg-white p-6 rounded-lg shadow-md">
-          {error && (
-            <div className="bg-red-50 text-red-700 p-4 rounded-md">
-              {error}
-            </div>
-          )}
+    <div className="space-y-6">
+      <div className="flex justify-between items-center">
+        <button
+          onClick={() => router.back()}
+          className="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-gray-700 bg-gray-100 hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500"
+        >
+          <ArrowLeft className="h-4 w-4 mr-1" />
+          Back
+        </button>
+      </div>
 
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Name</label>
-              <input
-                type="text"
-                name="name"
-                value={formData.name}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Email</label>
-              <input
-                type="email"
-                name="email"
-                value={formData.email}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Phone</label>
-              <input
-                type="tel"
-                name="phone"
-                value={formData.phone}
-                onChange={handleInputChange}
-                required
-                pattern="[0-9]{10}"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Aadhaar Number</label>
-              <input
-                type="text"
-                name="aadhaarNumber"
-                value={formData.aadhaarNumber}
-                onChange={handleInputChange}
-                required
-                pattern="[0-9]{12}"
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Address</label>
-              <input
-                type="text"
-                name="address"
-                value={formData.address}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Ration Card Type</label>
-              <select
-                name="rationCardType"
-                value={formData.rationCardType}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              >
-                <option value="WHITE">White</option>
-                <option value="YELLOW">Yellow</option>
-                <option value="GREEN">Green</option>
-                <option value="SAFFRON">Saffron</option>
-                <option value="RED">Red</option>
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700">Ration Card Number</label>
-              <input
-                type="text"
-                name="rationCardNumber"
-                value={formData.rationCardNumber}
-                onChange={handleInputChange}
-                required
-                className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500"
-              />
-            </div>
+      <form onSubmit={handleSubmit} className="space-y-8 divide-y divide-gray-200">
+        <div className="space-y-6 sm:space-y-5">
+          <div>
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              New Customer
+            </h3>
+            <p className="mt-1 max-w-2xl text-sm text-gray-500">
+              Add a new customer to the system
+            </p>
           </div>
 
-          <div className="flex justify-end space-x-4">
-            <Button
+          <div className="space-y-6 sm:space-y-5">
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Full Name
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="text"
+                  name="name"
+                  required
+                  value={formData.name}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Email
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="email"
+                  name="email"
+                  required
+                  value={formData.email}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Phone Number
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="tel"
+                  name="phone"
+                  required
+                  value={formData.phone}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Aadhaar Number
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="text"
+                  name="aadhaarNumber"
+                  required
+                  value={formData.aadhaarNumber}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Address
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="text"
+                  name="address"
+                  required
+                  value={formData.address}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Ration Card Type
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <select
+                  name="rationCardType"
+                  required
+                  value={formData.rationCardType}
+                  onChange={handleInputChange}
+                  className="max-w-lg block focus:ring-blue-500 focus:border-blue-500 w-full shadow-sm sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                >
+                  {CARD_TYPES.map(({ type, label }) => (
+                    <option key={type} value={type}>
+                      {label}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            <div className="sm:grid sm:grid-cols-3 sm:gap-4 sm:items-start">
+              <label className="block text-sm font-medium text-gray-700 sm:mt-px sm:pt-2">
+                Ration Card Number
+              </label>
+              <div className="mt-1 sm:mt-0 sm:col-span-2">
+                <input
+                  type="text"
+                  name="rationCardNumber"
+                  required
+                  value={formData.rationCardNumber}
+                  onChange={handleInputChange}
+                  className="max-w-lg block w-full shadow-sm focus:ring-blue-500 focus:border-blue-500 sm:max-w-xs sm:text-sm border-gray-300 rounded-md"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="pt-5">
+          <div className="flex justify-end">
+            <button
               type="button"
-              variant="outline"
               onClick={() => router.back()}
-              disabled={loading}
+              className="bg-white py-2 px-4 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
               Cancel
-            </Button>
-            <Button
+            </button>
+            <button
               type="submit"
               disabled={loading}
+              className="ml-3 inline-flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
             >
-              {loading ? 'Creating...' : 'Create Customer'}
-            </Button>
+              {loading ? 'Creating...' : 'Create'}
+            </button>
           </div>
-        </form>
-      </div>
+        </div>
+      </form>
     </div>
   );
 } 

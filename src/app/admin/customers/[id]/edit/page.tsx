@@ -7,7 +7,11 @@ import { toast } from 'react-hot-toast';
 import { customerApi } from '@/lib/api/customers';
 import type { Customer, RationCardType, FamilyMember } from '@/types/schema';
 
-const rationCardTypes: RationCardType[] = ['WHITE', 'YELLOW', 'GREEN', 'SAFFRON', 'RED'];
+const CARD_TYPES = [
+  { type: 'YELLOW' as RationCardType, label: 'Yellow - Antyodaya Anna Yojana (AAY)' },
+  { type: 'PINK' as RationCardType, label: 'Pink - Priority (BPL)' },
+  { type: 'BLUE' as RationCardType, label: 'Blue - Non-Priority (APL with Subsidy)' }
+];
 
 export default function EditCustomerPage({
   params,
@@ -168,9 +172,9 @@ export default function EditCustomerPage({
                   onChange={(e) => setCustomer({ ...customer, rationCardType: e.target.value as RationCardType })}
                   className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
                 >
-                  {rationCardTypes.map((type) => (
-                    <option key={type} value={type}>
-                      {type}
+                  {CARD_TYPES.map((cardType) => (
+                    <option key={cardType.type} value={cardType.type}>
+                      {cardType.label}
                     </option>
                   ))}
                 </select>

@@ -1,17 +1,17 @@
 import { Timestamp } from '@firebase/firestore';
 
-export type RationCardType = 'WHITE' | 'YELLOW' | 'GREEN' | 'SAFFRON' | 'RED';
+export type RationCardType = 'YELLOW' | 'PINK' | 'BLUE';
 
 export interface Customer {
   id: string;
-  aadhaarNumber: string;
   name: string;
-  phone: string;
-  address: string;
+  phone?: string;
+  address?: string;
+  aadhaarNumber: string;
   rationCardType: RationCardType;
   rationCardNumber: string;
-  familyMembers: FamilyMember[];
-  monthlyQuota: MonthlyQuota;
+  otpGeneratedAt?: Timestamp | null;
+  otp?: string;
 }
 
 export interface FamilyMember {
@@ -21,35 +21,48 @@ export interface FamilyMember {
   age: number;
 }
 
-export interface MonthlyQuota {
-  rice: number;
-  wheat: number;
-  sugar: number;
-  kerosene: number;
+export interface CardTypeQuota {
+  id: string;
+  description: string;
+  monthlyQuota: Record<string, number>;
 }
 
 export interface InventoryItem {
   id: string;
   name: string;
   quantity: number;
-  prices: Record<RationCardType, number>;
   unit: string;
   minimumStock: number;
-  lastUpdated: Timestamp;
+  prices: {
+    YELLOW: number;
+    PINK: number;
+    BLUE: number;
+  };
+  lastUpdated?: Timestamp;
 }
 
 export interface Order {
   id: string;
   customerId: string;
-  rationCardType: RationCardType;
-  items: OrderItem[];
+  rationCardType: Customer['rationCardType'];
+  items: {
+    itemId: string;
+    name: string;
+    quantity: number;
+    price: number;
+    unit: string;
+  }[];
   totalAmount: number;
-  status: 'pending' | 'completed' | 'cancelled';
+  status: 'pending' | 'approved' | 'rejected' | 'completed';
   orderDate: Timestamp;
 }
 
-export interface OrderItem {
-  itemId: string;
-  quantity: number;
-  priceAtTime: number;
+export interface CustomerIssue {
+  id: string;
+  customerId: string;
+  description: string;
+  status: 'pending' | 'in-progress' | 'resolved';
+  response?: string;
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
 } 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useParams } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { doc, getDoc, updateDoc, deleteDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
@@ -10,7 +10,10 @@ import { logger } from '@/lib/logger';
 import type { InventoryItem } from '@/types/schema';
 import { toast } from 'react-hot-toast';
 
-export default function EditInventoryPage({ params }: { params: { id: string } }) {
+export default function EditInventoryPage() {
+  const params = useParams();
+  const id = params?.id as string;
+  
   const { admin, loading } = useAuth();
   const router = useRouter();
   const [item, setItem] = useState<InventoryItem | null>(null);
@@ -27,13 +30,13 @@ export default function EditInventoryPage({ params }: { params: { id: string } }
 
   useEffect(() => {
     async function fetchItem() {
-      if (!admin) return;
+      if (!admin || !id) return;
 
       try {
         setIsLoading(true);
         setError(null);
 
-        const docRef = doc(db, 'inventory', params.id);
+        const docRef = doc(db, 'inventory', id);
         const docSnap = await getDoc(docRef);
 
         if (!docSnap.exists()) {
@@ -51,7 +54,7 @@ export default function EditInventoryPage({ params }: { params: { id: string } }
     }
 
     fetchItem();
-  }, [admin, params.id]);
+  }, [admin, id]);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -61,7 +64,7 @@ export default function EditInventoryPage({ params }: { params: { id: string } }
       setIsSaving(true);
       setError(null);
 
-      const docRef = doc(db, 'inventory', params.id);
+      const docRef = doc(db, 'inventory', id);
       await updateDoc(docRef, {
         name: item.name,
         quantity: item.quantity,
@@ -89,7 +92,7 @@ export default function EditInventoryPage({ params }: { params: { id: string } }
       setIsDeleting(true);
       setError(null);
 
-      const docRef = doc(db, 'inventory', params.id);
+      const docRef = doc(db, 'inventory', id);
       await deleteDoc(docRef);
 
       toast.success('Item deleted successfully');

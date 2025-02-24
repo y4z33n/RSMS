@@ -1,12 +1,13 @@
 'use client';
 
-import { useAuth } from '@/hooks/useAuth';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import { ShoppingBag, User, Clock, LogOut } from 'lucide-react';
 import { auth } from '@/lib/firebase';
-import { handleFirebaseError } from '@/lib/error-handling';
-import { Suspense, useEffect } from 'react';
+import { toast } from 'react-hot-toast';
+import { logger } from '@/lib/logger';
+import type { Customer } from '@/types/schema';
 
 // Loading component for Suspense fallback
 function LoadingSpinner() {
@@ -29,37 +30,45 @@ export default function CustomerLayout({
 }: {
   children: React.ReactNode;
 }) {
-  const { customer, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [customer, setCustomer] = useState<Customer | null>(null);
 
   useEffect(() => {
-    if (!loading && !customer && window.location.pathname !== '/customer/login') {
+    const customerData = sessionStorage.getItem('customer');
+    if (customerData) {
+      setCustomer(JSON.parse(customerData));
+    } else {
       router.push('/customer/login');
     }
-  }, [loading, customer, router]);
-
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-
-  // If we're on the login page, render children (the login form)
-  if (!customer && window.location.pathname === '/customer/login') {
-    return <>{children}</>;
-  }
-
-  // If not authenticated and not on login page, show loading (will redirect via useEffect)
-  if (!customer) {
-    return <LoadingSpinner />;
-  }
+  }, [router]);
 
   const handleLogout = async () => {
     try {
+      logger.info('CustomerLayout', 'Logging out user');
       await auth.signOut();
-      router.push('/customer/login');
+      // Clear session storage
+      sessionStorage.clear();
+      toast.success('Logged out successfully');
+      router.push('/');
     } catch (error) {
-      console.error('Logout error:', handleFirebaseError(error));
+      logger.error('CustomerLayout', 'Logout error', error);
+      toast.error('Failed to log out');
     }
   };
+
+  // If on login page, show only the login form
+  if (pathname === '/customer/login') {
+    return <>{children}</>;
+  }
+
+  if (!customer) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-800"></div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-100">
@@ -77,7 +86,11 @@ export default function CustomerLayout({
                   <Link
                     key={href}
                     href={href}
-                    className="inline-flex items-center px-1 pt-1 text-sm font-medium text-gray-900 hover:text-blue-600 transition-colors"
+                    className={`inline-flex items-center px-1 pt-1 text-sm font-medium 
+                      ${pathname === href 
+                        ? 'text-blue-600 border-b-2 border-blue-600' 
+                        : 'text-gray-900 hover:text-blue-600 transition-colors'
+                      }`}
                   >
                     <Icon className="mr-2 h-4 w-4" />
                     {label}
@@ -100,9 +113,7 @@ export default function CustomerLayout({
 
       <main className="py-10">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
-          <Suspense fallback={<LoadingSpinner />}>
-            {children}
-          </Suspense>
+          {children}
         </div>
       </main>
     </div>

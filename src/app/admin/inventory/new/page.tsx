@@ -8,7 +8,11 @@ import { addDoc, collection, serverTimestamp } from '@firebase/firestore';
 import { db } from '@/lib/firebase';
 import type { InventoryItem, RationCardType } from '@/types/schema';
 
-const rationCardTypes: RationCardType[] = ['WHITE', 'YELLOW', 'GREEN', 'SAFFRON', 'RED'];
+const CARD_TYPES = [
+  { type: 'YELLOW' as RationCardType, label: 'Yellow - Antyodaya Anna Yojana (AAY)' },
+  { type: 'PINK' as RationCardType, label: 'Pink - Priority (BPL)' },
+  { type: 'BLUE' as RationCardType, label: 'Blue - Non-Priority (APL with Subsidy)' }
+];
 
 export default function NewInventoryItemPage() {
   const router = useRouter();
@@ -19,11 +23,9 @@ export default function NewInventoryItemPage() {
     unit: '',
     minimumStock: 0,
     prices: {
-      WHITE: 0,
       YELLOW: 0,
-      GREEN: 0,
-      SAFFRON: 0,
-      RED: 0,
+      PINK: 0,
+      BLUE: 0
     },
   });
 
@@ -145,10 +147,10 @@ export default function NewInventoryItemPage() {
               Prices by Ration Card Type
             </h3>
             <div className="grid grid-cols-2 gap-6">
-              {rationCardTypes.map((type) => (
+              {CARD_TYPES.map(({ type, label }) => (
                 <div key={type}>
                   <label htmlFor={`price-${type}`} className="block text-sm font-medium text-gray-700">
-                    {type}
+                    {label}
                   </label>
                   <div className="mt-1 relative rounded-md shadow-sm">
                     <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

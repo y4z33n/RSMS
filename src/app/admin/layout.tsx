@@ -6,6 +6,16 @@ import { logger } from '@/lib/logger';
 import { useAuth } from '@/contexts/auth-context';
 import { useNavigation } from '@/services/navigation';
 import { Sidebar } from '@/components/admin/sidebar';
+import { Home, Users, Package, ShoppingBag, CreditCard, ShoppingCart, MessageSquare } from 'lucide-react';
+
+const SIDEBAR_ITEMS = [
+  { href: '/admin', label: 'Dashboard', icon: Home },
+  { href: '/admin/customers', label: 'Customers', icon: Users },
+  { href: '/admin/inventory', label: 'Inventory', icon: Package },
+  { href: '/admin/orders', label: 'Orders', icon: ShoppingCart },
+  { href: '/admin/card-quotas', label: 'Card Quotas', icon: CreditCard },
+  { href: '/admin/customer-issues', label: 'Customer Issues', icon: MessageSquare },
+];
 
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
