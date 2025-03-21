@@ -7,8 +7,8 @@ import { Toaster } from '@/components/ui/toaster';
 const inter = Inter({ subsets: ['latin'] });
 
 export const metadata: Metadata = {
-  title: 'Ration Shop Management System',
-  description: 'A modern ration shop management system',
+  title: 'eServe - PDS Ecommerce Platform',
+  description: 'Ecommerce Website for Public Distribution System',
 };
 
 export default function RootLayout({
